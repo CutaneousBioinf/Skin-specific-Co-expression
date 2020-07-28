@@ -71,6 +71,7 @@ for(i in 1:2042499){
                                paste(c(index_Compared[i,2],"SEX","AGE","BMI"),collapse = "+"), sep = "~"))
   }
 
+
 ## linear regression source data
 table2_simplified <- table2[,c("SEX","AGE","BMI")]
 table2_simplified <- table2_simplified[which(!apply(table2_simplified,1,function(x)any(is.na(x)))),]
@@ -94,7 +95,90 @@ inverse_MuscleData$SubjectID <- sapply(rownames(inverse_MuscleData),
 regression_source3 <- merge(table2_simplified,inverse_MuscleData,by="SubjectID") # keep doing this for all tissue's largest subset
 
 
+## perform linear regression, get beta and se values
 
+#!/usr/bin/env Rscript
+args = commandArgs(trailingOnly=TRUE)
+j = args[1]
+form = readRDS("form.rds")
+regression_sourcej = readRDS(paste0("regression_source", j, ".rds"))
+summary_j = list()
+for(i in 1:length(form)){
+  summary_j[[i]] = summary(lm(form[[i]],data=regression_sourcej))
+}
+saveRDS(summary_j, paste0("summary_", j ,".rds"))
+
+
+
+#!/usr/bin/env Rscript
+args = commandArgs(trailingOnly=TRUE)
+j = args[1]
+summary_j = readRDS(paste0("summary_", j, ".rds"))
+beta_j = c()
+for(i in 1:length(summary_j)){
+  beta_j[i] = summary_j[[i]]$coefficients[2,1]
+}
+saveRDS(beta_j, paste0("beta_", j ,".rds"))
+
+
+
+#!/usr/bin/env Rscript
+args = commandArgs(trailingOnly=TRUE)
+j = args[1]
+summary_j = readRDS(paste0("summary_", j, ".rds"))
+se_j = c()
+for(i in 1:length(summary_j)){
+  se_j[i] = summary_j[[i]]$coefficients[2,2]
+}
+saveRDS(se_j, paste0("se_", j ,".rds"))
+
+
+## comparing summary statistics
+
+one_2_beta = beta_1 - beta_2
+one_2_se = sqrt((se_1)^2 + (se_2)^2)
+one_2_z = one_2_beta / one_2_se
+one_2_pnorm = pnorm(abs(one_2_z), lower.tail=F)*2
+one_2_fdr = p.adjust(one_2_pnorm, method="fdr")
+
+one_3_beta = beta_1 - beta_3
+one_3_se = sqrt((se_1)^2 + (se_3)^2)
+one_3_z = one_3_beta / one_3_se
+one_3_pnorm = pnorm(abs(one_3_z), lower.tail=F)*2
+one_3_fdr = p.adjust(one_3_pnorm, method="fdr")
+
+c1 = ((one_2_beta > 0) & (one_2_fdr < 0.1))
+c2 = c1 & ((one_3_beta > 0) & (one_3_fdr < 0.1))
+c3 = c2 & ((one_4_beta > 0) & (one_4_fdr < 0.1)) ## keep doing this for every beta, se
+c29 = c28 & ((one_30_beta >0) & (one_30_fdr < 0.1))
+
+
+## get the final significant protein-encoding gene pairs
+gene_symbol =read.table(pipe("zcat /net/dumbo/home/xwen/ncbi/dbGaP-9060/gtex_v7_data/rna-seq/GTEx_Analysis_v7_RNA-seq_RNA-SeQCv1.1.8_gene_rpkm.gct.gz | awk 'NR>3{print $1\"\t\"$2}'"),
+                        stringsAsFactors=F)
+
+index_Compared_1 = subset(index_Compared, c29)
+index_Compared_1 = as_tibble(index_Compared_1)
+colnames(index_Compared_1) = c("gene1", "gene2")
+index_Compared_1 = index_Compared_1 %>% left_join(gene_symbol, by = c("gene1" = "V1"))
+colnames(index_Compared_1)[3] = "gene1_symbol"
+index_Compared_1 = index_Compared_1 %>% left_join(gene_symbol, by = c("gene2" = "V1"))
+colnames(index_Compared_1)[4] = "gene2_symbol"
+protein_symbol = protein_symbol %>% select(gene, Category)
+index_Compared_1 = index_Compared_1 %>% left_join(protein_symbol, by = c("gene1_symbol" = "gene"))
+colnames(index_Compared_1)[5] = "gene1_category"
+index_Compared_1 = index_Compared_1 %>% left_join(protein_symbol, by = c("gene2_symbol" = "gene"))
+colnames(index_Compared_1)[6] = "gene2_category"
+index_Compared_1 = filter(index_Compared_1, gene1_category == "Protein_coding" & gene2_category == "Protein_coding")
+saveRDS(index_Compared_1, "~/final_left_gene_pairs.rds")
+
+
+## get the final significant genes and their number of connections
+final_left_genes = final_left_gene_pairs[,1:2] %>% 
+                   pivot_longer(gene1:gene2, values_to = "gene") %>% 
+                   select(-1) %>% 
+                   count(gene) %>% 
+                   arrange(desc(n))
 
 
 
