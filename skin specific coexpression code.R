@@ -147,6 +147,12 @@ one_3_z = one_3_beta / one_3_se
 one_3_pnorm = pnorm(abs(one_3_z), lower.tail=F)*2
 one_3_fdr = p.adjust(one_3_pnorm, method="fdr")
 
+one_4_beta = beta_1 - beta_4
+one_4_se = sqrt((se_1)^2 + (se_4)^2)
+one_4_z = one_4_beta / one_4_se
+one_4_pnorm = pnorm(abs(one_4_z), lower.tail=F)*2
+one_4_fdr = p.adjust(one_4_pnorm, method="fdr")
+
 c1 = ((one_2_beta > 0) & (one_2_fdr < 0.1))
 c2 = c1 & ((one_3_beta > 0) & (one_3_fdr < 0.1))
 c3 = c2 & ((one_4_beta > 0) & (one_4_fdr < 0.1)) ## keep doing this for every beta, se
