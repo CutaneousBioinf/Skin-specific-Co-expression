@@ -12,11 +12,16 @@ colnames(data) <- scan(pipe("zcat /net/dumbo/home/xwen/ncbi/dbGaP-9060/gtex_v7_d
 rownames(data) <- scan(pipe("zcat /net/dumbo/home/xwen/ncbi/dbGaP-9060/gtex_v7_data/rna-seq/GTEx_Analysis_v7_RNA-seq_RNA-SeQCv1.1.8_gene_rpkm.gct.gz | awk 'NR>3' | cut -f1"),what="")
 final_data <- as.matrix(data) 
 
+
 ## Sample Attributes table
-table1 <- read.table("GTEx_Analysis_2016-01-15_v7_SampleAttributesDS.txt",header=T,row.names=1,sep="\t",quote=NULL,comment.char="",stringsAsFactors=F) 
+table1 <- read.table("GTEx_Analysis_2016-01-15_v7_SampleAttributesDS.txt",
+                     header=T,row.names=1,sep="\t",quote=NULL,comment.char="",stringsAsFactors=F) 
+
 
 ## Subject Phenotypes table
-table2 <- read.table("GTEx_Analysis_2016-01-15_v7_SubjectPhenotypesDS.txt",header=T,row.names=1,sep="\t",quote=NULL,comment.char="",stringsAsFactors=F) 
+table2 <- read.table("GTEx_Analysis_2016-01-15_v7_SubjectPhenotypesDS.txt",
+                     header=T,row.names=1,sep="\t",quote=NULL,comment.char="",stringsAsFactors=F) 
+
 
 ## How to get FPKM expression data for each tissue and get the largest subset's FPKM expression data for some tissue
 Exposed_Skinid <- rownames(table1)[table1$SMTSD == "Skin - Sun Exposed (Lower leg)"]
@@ -29,41 +34,60 @@ New_AdiposeData <- Adipose_Data[rownames(New_Exposed_SkinData),]
 
 Subcutaneous_id <- rownames(table1)[table1$SMTSD == "Adipose - Subcutaneous"]
 Subcutaneous_Data <- final_data[,colnames(final_data)%in%Subcutaneous_id]
-New_Subcutaneous_Data <- Subcutaneous_Data[rownames(New_Exposed_SkinData),]
+New_SubcutaneousData <- Subcutaneous_Data[rownames(New_Exposed_SkinData),]
 
-Adrenal_id = rownames(table1)[table1$SMTS == "Adrenal Gland"]
-Adrenal_data = final_data[,colnames(final_data)%in%Adrenal_id]
-New_AdrenalData = Adrenal_data[rownames(New_Exposed_SkinData),]
+Adrenal_id <- rownames(table1)[table1$SMTS == "Adrenal Gland"]
+Adrenal_Data <- final_data[,colnames(final_data)%in%Adrenal_id]
+New_AdrenalData <- Adrenal_Data[rownames(New_Exposed_SkinData),]
+
+Muscle_id <- rownames(table1)[table1$SMTS == "Muscle"]
+Muscle_Data <- final_data[,colnames(final_data)%in%Muscle_id]
+New_MuscleData <- Muscle_Data[rownames(New_Exposed_SkinData),]
+
+Tibial_id <- rownames(table1)[table1$SMTSD == "Artery - Tibial"]
+Tibial_Data <- final_data[,colnames(final_data)%in%Tibial_id]
+New_TibialData <- Tibial_Data[rownames(New_Exposed_SkinData),]
 
 
-## How to get normalized expression data for each tissue after quantiles normalization and inverse normalization
+## How to get normalized expression data for each tissue after quantiles normalization and inverse normalization. 
+## Using sun-exposed skin tissue as an example
 tempdata_quantile <- normalize.quantiles(New_Exposed_SkinData)
 rownames(tempdata_quantile) <- rownames(New_Exposed_SkinData)
 colnames(tempdata_quantile) <- colnames(New_Exposed_SkinData)
 
 inverse_Exposed_SkinData <- t(apply(tempdata_quantile,1,function(x){ qnorm((rank(x)-(3/8))/(length(x)-2*(3/8)+1))}))
 
+
 ## How to get spearman correlation matrix of each tissue's normalized expression data
 inverse_Exposed_SkinCor <- cor(t(inverse_Exposed_SkinData), method = "spearman")
 inverse_AdiposeCor <- cor(t(inverse_AdiposeData), method = "spearman")
 inverse_AdrenalCor <- cor(t(inverse_AdrenalData), method = "spearman")
+inverse_BladderCor <- cor(t(inverse_BladderData), method = "spearman")
+
 
 ## How to do correlation comparison to find positive correlated gene pairs that're only significant in sun-exposed skin
 inverse_Exposed_SkinCor[inverse_Exposed_SkinCor < 0 ] <- 0
 inverse_Exposed_SkinCor[is.na(inverse_Exposed_SkinCor)] <- 0
 diag(inverse_Exposed_SkinCor) <- 0
-inverse_AdiposeCor[is.na(inverse_AdiposeCor)] <- 0
 
+inverse_AdiposeCor[is.na(inverse_AdiposeCor)] <- 0
 compare1 <- (inverse_Exposed_SkinCor > inverse_AdiposeCor) & (inverse_Exposed_SkinCor > 0)
 inverse_Exposed_SkinCor <- ifelse(compare1, inverse_Exposed_SkinCor, 0)
-compare2 <- (inverse_Exposed_SkinCor > inverse_AdrenalCor) & (inverse_Exposed_SkinCor > 0)
-inverse_Exposed_SkinCor <- ifelse(compare2, inverse_Exposed_SkinCor, 0) # keep doing this for all other tissues 
 
+inverse_AdrenalCor[is.na(inverse_AdrenalCor)] <- 0
+compare2 <- (inverse_Exposed_SkinCor > inverse_AdrenalCor) & (inverse_Exposed_SkinCor > 0)
+inverse_Exposed_SkinCor <- ifelse(compare2, inverse_Exposed_SkinCor, 0) 
+
+inverse_BladderCor[is.na(inverse_BladderCor)] <- 0
+compare3 <- (inverse_Exposed_SkinCor > inverse_BladderCor) & (inverse_Exposed_SkinCor > 0)
+inverse_Exposed_SkinCor <- ifelse(compare3, inverse_Exposed_SkinCor, 0) # keep doing this for all other tissues 
+
+inverse_IntestineCor[is.na(inverse_IntestineCor)] <- 0
 compare29 <- (inverse_Exposed_SkinCor > inverse_IntestineCor) & (inverse_Exposed_SkinCor > 0)
 inverse_final_compared <- ifelse(compare29, inverse_Exposed_SkinCor, 0)
 
 
-## linear regression formula
+## get the linear regression formula
 index_Compared <- which(inverse_final_compared>0,arr.ind=T)
 index_Compared <- index_Compared[which(index_Compared[,1]>index_Compared[,2]),]
 index_Compared <- cbind(colnames(inverse_final_compared)[index_Compared[,1]],
@@ -76,7 +100,7 @@ for(i in 1:2042499){
   }
 
 
-## linear regression source data
+## get the linear regression source data
 table2_simplified <- table2[,c("SEX","AGE","BMI")]
 table2_simplified <- table2_simplified[which(!apply(table2_simplified,1,function(x)any(is.na(x)))),]
 table2_simplified$SubjectID <- rownames(table2_simplified)
@@ -96,10 +120,16 @@ regression_source2 <- merge(table2_simplified,inverse_subcutaneous_data,by="Subj
 inverse_MuscleData <- as.data.frame(t(readRDS("inverse_data/inverse_MuscleData.rds")))
 inverse_MuscleData$SubjectID <- sapply(rownames(inverse_MuscleData),
                                              function(x)paste(unlist(strsplit(x,"-"))[1:2],collapse="-"))
-regression_source3 <- merge(table2_simplified,inverse_MuscleData,by="SubjectID") # keep doing this for all tissue's largest subset
+regression_source3 <- merge(table2_simplified,inverse_MuscleData,by="SubjectID") 
 
 
-## perform linear regression, get beta and se values
+inverse_tibial_data <- as.data.frame(t(readRDS("inverse_data/inverse_tibial_data.rds")))
+inverse_tibial_data$SubjectID <- sapply(rownames(inverse_tibial_data),
+                                       function(x)paste(unlist(strsplit(x,"-"))[1:2],collapse="-"))
+regression_source4 <- merge(table2_simplified,inverse_tibial_data,by="SubjectID") # keep doing this for all tissue's largest subset
+
+
+## run the following R scripts to perform linear regression, get summary statistics
 
 #!/usr/bin/env Rscript
 args <- commandArgs(trailingOnly=TRUE)
@@ -159,7 +189,8 @@ one_4_fdr <- p.adjust(one_4_pnorm, method="fdr")
 
 c1 <- ((one_2_beta > 0) & (one_2_fdr < 0.1))
 c2 <- c1 & ((one_3_beta > 0) & (one_3_fdr < 0.1))
-c3 <- c2 & ((one_4_beta > 0) & (one_4_fdr < 0.1)) ## keep doing this for every beta, se
+c3 <- c2 & ((one_4_beta > 0) & (one_4_fdr < 0.1)) ## keep doing this for every beta, fdr
+
 c29 <- c28 & ((one_30_beta >0) & (one_30_fdr < 0.1))
 
 
@@ -192,17 +223,55 @@ final_left_genes <- final_left_gene_pairs[,1:2] %>%
 
 
 ## perform PCA on significant genes' normalized expression data
-pca_data_source <- subset(inverse_Exposed_SkinData,rownames(inverse_Exposed_SkinData) %in% final_left_genes$gene)
+pca_data_source <- subset(inverse_Exposed_SkinData,
+                          rownames(inverse_Exposed_SkinData) %in% final_left_genes$gene)
 skin_pca <- prcomp(pca_data_source, center = T, scale = T)
 
-## silhouette plot
+
+## silhouette plot to decide the optimal number of clusters
 fviz_nbclust(skin_pca$x[,1:50], kmeans, method = "silhouette", k.max = 15) + theme_minimal() + ggtitle("The Silhouette Plot")
 
-## perform UMPA on first 50 PCs and colored by the outcome of k-means clustering 
+
+## perform UMPA on first 50 PCs and colored by the output of k-means clustering 
 set.seed(200)
 skin_umap = umap(skin_pca$x[,1:50])
 km.out = kmeans(skin_pca$x[,1:50], centers = 6, nstart = 20)
 plot(skin_umap$layout, col = (km.out+2), pch = 20)
+
+
+## graph significant genes' connectivity
+cor_data_source <- subset(inverse_Exposed_SkinData,
+                          rownames(inverse_Exposed_SkinData) %in% final_left_genes$gene)
+final_genes_cor <- cor(t(cor_data_source), method = "spearman")
+diag(final_genes_cor) <- 0
+final_genes_cor <- as.data.frame(final_genes_cor)
+final_genes_connectivity <- final_genes_cor %>% 
+                            transmute(connectivity = rowSums(., na.rm = T))
+final_genes_connectivity <- final_genes_connectivity %>% 
+                            arrange(connectivity)
+final_genes_connectivity <- final_genes_connectivity %>% 
+                            mutate(interval = cut_width(connectivity, width = 100, center = 50))
+final_genes_connectivity <- final_genes_connectivity %>% 
+                            mutate(interval_2 = cut_width(connectivity, width = 100, center = 50, labels = FALSE))
+final_genes_connectivity <- final_genes_connectivity %>% 
+                            mutate(interval_2 = (interval_2-1)*100 + 50)
+
+final_genes_connectivity <- final_genes_connectivity %>% 
+                           group_by(interval_2) %>% 
+                           summarise(n = n()) %>% 
+                           mutate(freq = n/sum(n))
+
+final_genes_connectivity[,c(1,3)] <- log(final_genes_connectivity[,c(1,3)],10)
+
+ggplot(data = final_genes_connectivity) + 
+      geom_point(aes(x = interval_2, y = freq)) + 
+      geom_smooth() + 
+      theme_bw()
+
+
+
+
+
 
 
 
