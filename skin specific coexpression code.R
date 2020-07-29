@@ -3,6 +3,7 @@ library(tidyverse)
 library(preprocessCore)
 library(NbClust)
 library(umap)
+library(cowplot)
 
 
 
@@ -267,6 +268,59 @@ ggplot(data = final_genes_connectivity) +
       geom_point(aes(x = interval_2, y = freq)) + 
       geom_smooth() + 
       theme_bw()
+
+
+## graphing skin relative expression using FPKM expression values
+New_SalivaryData <- readRDS("New_SalivaryData.rds")
+salivary_mean <- rowMeans(New_SalivaryData, na.rm = T)
+salivary_mean_2804 <- subset(salivary_mean, names(salivary_mean) %in% final_left_genes$gene)
+salivary_mean_35385 <- subset(salivary_mean, !(names(salivary_mean) %in% final_left_genes$gene))
+
+New_Exposed_SkinData <- readRDS("New_Exposed_SkinData.rds")
+skin_mean <- rowMeans(New_Exposed_SkinData, na.rm = T)
+skin_mean_2804 <- subset(skin_mean, names(skin_mean) %in% final_left_genes$gene)
+skin_mean_35385 <- subset(skin_mean, !(names(skin_mean) %in% final_left_genes$gene)) ## do this for all other tissues
+
+skin_relative_expression_2804 <- skin_mean_2804 * 29 / (adipose_mean_2804+adrenal_mean_2804+bladder_mean_2804+blood_mean_2804+
+                                                       vessel_mean_2804+brain_mean_2804+breast_mean_2804+cervix_mean_2804+colon_mean_2804+
+                                                       esophagus_mean_2804+fallopian_mean_2804+heart_mean_2804+kidney_mean_2804+liver_mean_2804+
+                                                       lung_mean_2804+muscle_mean_2804+nerve_mean_2804+ovary_mean_2804+pancreas_mean_2804+
+                                                       pituitary_mean_2804+prostate_mean_2804+spleen_mean_2804+stomach_mean_2804+testis_mean_2804+
+                                                       thyroid_mean_2804+uterus_mean_2804+vagina_mean_2804+salivary_mean_2804+intestine_mean_2804)
+
+skin_relative_expression_35385 <- skin_mean_35385 * 29 / (adipose_mean_35385+adrenal_mean_35385+bladder_mean_35385+blood_mean_35385+
+                                                          vessel_mean_35385+brain_mean_35385+breast_mean_35385+cervix_mean_35385+colon_mean_35385+
+                                                          esophagus_mean_35385+fallopian_mean_35385+heart_mean_35385+kidney_mean_35385+liver_mean_35385+
+                                                          lung_mean_35385+muscle_mean_35385+nerve_mean_35385+ovary_mean_35385+pancreas_mean_35385+
+                                                          pituitary_mean_35385+prostate_mean_35385+spleen_mean_35385+stomach_mean_35385+testis_mean_35385+
+                                                          thyroid_mean_35385+uterus_mean_35385+vagina_mean_35385+salivary_mean_35385+intestine_mean_35385)
+
+vec1 <- as.data.frame(skin_relative_expression_2804)
+vec2 <- as.data.frame(skin_relative_expression_35385)
+
+vec1 <- vec1 %>% mutate(gene_type = "2804 significant genes")
+names(vec1)[1] <- "relative_expression"
+vec2 <- vec2 %>% mutate(gene_type = "35385 non-significant genes")
+names(vec2)[1] <- "relative_expression"
+vec1_2 <- rbind(vec1, vec2)
+
+main.plot <- ggplot(vec1_2,aes(x=relative_expression, fill=gene_type)) +  
+             geom_density(alpha=0.25) + theme_bw() + scale_x_continuous(trans = 'log2') +           
+             scale_y_continuous(limits = c(0,1))
+
+inset.plot <- ggplot(vec1_2,aes(x=gene_type, y=relative_expression, fill=gene_type)) + 
+              geom_boxplot() + theme_bw() + scale_y_continuous(trans = 'log2') + 
+              theme(axis.title.y=element_blank(), axis.text.y=element_blank(),axis.ticks.y=element_blank(), 
+              legend.position = "none", axis.text.x=element_blank(),axis.ticks.x=element_blank()) + coord_flip()
+
+ggdraw() + draw_plot(main.plot) + draw_plot(inset.plot, x = 0.27, y = 0.57, width = 0.4, height = 0.4)
+
+
+
+
+
+
+
 
 
 
