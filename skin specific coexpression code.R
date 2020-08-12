@@ -4,7 +4,7 @@ library(preprocessCore)
 library(NbClust)
 library(umap)
 library(cowplot)
-
+library(reshape2)
 
 
 # expression data for all tissues
@@ -316,7 +316,7 @@ inset.plot <- ggplot(vec1_2,aes(x=gene_type, y=relative_expression, fill=gene_ty
 ggdraw() + draw_plot(main.plot) + draw_plot(inset.plot, x = 0.27, y = 0.57, width = 0.4, height = 0.4)
 
 
-
+## graphing skin specific expression using FPKM expression values
 
 
 
